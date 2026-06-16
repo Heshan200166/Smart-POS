@@ -6,8 +6,10 @@
         xmlns:local="clr-namespace:SmartPOS.UI"
         mc:Ignorable="d"
         Title="Smart Retail POS Management System" Height="600" Width="900"
-        WindowStartupLocation="CenterScreen">
-    <Grid>
+        WindowStartupLocation="CenterScreen"
+        Background="#FFFFFF"
+        Foreground="#000000">
+    <Grid Background="#F5F5F5">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -31,62 +33,78 @@
         </Border>
 
         <!-- Content -->
-        <Grid Grid.Row="1" Margin="20">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+        <ScrollViewer Grid.Row="1" Margin="20" VerticalScrollBarVisibility="Auto">
+            <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center">
                 <TextBlock Text="🚀 System Status" 
                           FontSize="20" 
                           FontWeight="Bold"
                           HorizontalAlignment="Center"
-                          Margin="0,0,0,20"/>
+                          Margin="0,0,0,20"
+                          Foreground="#2C3E50"/>
                 
                 <StackPanel Orientation="Horizontal" Margin="0,10">
-                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock Text="Application Initialized" FontSize="14"/>
+                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold" Width="30"/>
+                    <TextBlock Text="Application Initialized Successfully" FontSize="14" Foreground="#27AE60"/>
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" Margin="0,10">
-                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock Text="Dependency Injection Configured" FontSize="14"/>
+                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold" Width="30"/>
+                    <TextBlock Text="Dependency Injection Configured" FontSize="14" Foreground="#27AE60"/>
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" Margin="0,10">
-                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock Text="Logging System Active" FontSize="14"/>
+                    <TextBlock Text="✓ " Foreground="Green" FontSize="16" FontWeight="Bold" Width="30"/>
+                    <TextBlock Text="Logging System Active" FontSize="14" Foreground="#27AE60"/>
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" Margin="0,10">
-                    <TextBlock x:Name="DbStatusIcon" Text="⏳ " Foreground="Orange" FontSize="16" FontWeight="Bold"/>
-                    <TextBlock x:Name="DbStatusText" Text="Database Connection Pending" FontSize="14"/>
+                    <TextBlock x:Name="DbStatusIcon" Text="⏳ " Foreground="Orange" FontSize="16" FontWeight="Bold" Width="30"/>
+                    <TextBlock x:Name="DbStatusText" Text="Database Connection Pending" FontSize="14" Foreground="#E67E22"/>
                 </StackPanel>
 
-                <Button Content="Test Database Connection" 
-                       Click="TestConnection_Click"
-                       Width="200" 
-                       Height="35" 
-                       Margin="0,30,0,0"
-                       Background="#3498DB"
-                       Foreground="White"
-                       FontSize="14"
-                       Cursor="Hand"/>
+                <StackPanel Orientation="Horizontal" Margin="0,30,0,0" HorizontalAlignment="Center">
+                    <Button Content="Test Database Connection" 
+                           Click="TestConnection_Click"
+                           Width="220" 
+                           Height="40" 
+                           Margin="5,0"
+                           Background="#3498DB"
+                           Foreground="White"
+                           FontSize="14"
+                           Cursor="Hand"/>
 
-                <Button Content="Initialize Database" 
-                       Click="InitializeDatabase_Click"
-                       Width="200" 
-                       Height="35" 
-                       Margin="0,10,0,0"
-                       Background="#27AE60"
-                       Foreground="White"
-                       FontSize="14"
-                       Cursor="Hand"/>
+                    <Button Content="Initialize Database" 
+                           Click="InitializeDatabase_Click"
+                           Width="220" 
+                           Height="40" 
+                           Margin="5,0"
+                           Background="#27AE60"
+                           Foreground="White"
+                           FontSize="14"
+                           Cursor="Hand"/>
+                </StackPanel>
+
+                <TextBlock Text="Phase 1 Foundation Complete ✅" 
+                          FontSize="14"
+                          HorizontalAlignment="Center"
+                          Margin="0,40,0,0"
+                          Foreground="#7F8C8D"/>
+                
+                <TextBlock Text="Ready to Test Database Connection" 
+                          FontSize="12"
+                          HorizontalAlignment="Center"
+                          Margin="0,5,0,0"
+                          Foreground="#95A5A6"/>
             </StackPanel>
-        </Grid>
+        </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="2" Background="#ECF0F1" Padding="10">
+        <Border Grid.Row="2" Background="#ECF0F1" Padding="10" BorderThickness="0,1,0,0" BorderBrush="#BDC3C7">
             <TextBlock x:Name="StatusText" 
                       Text="Ready" 
                       HorizontalAlignment="Center"
-                      Foreground="#7F8C8D"/>
+                      Foreground="#34495E"
+                      FontSize="12"/>
         </Border>
     </Grid>
 </Window>
