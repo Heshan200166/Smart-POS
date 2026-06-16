@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="SmartPOS.AI/SmartPOS.AI.csproj" />
+  <Project Path="SmartPOS.Business/SmartPOS.Business.csproj" />
+  <Project Path="SmartPOS.Data/SmartPOS.Data.csproj" />
+  <Project Path="SmartPOS.Models/SmartPOS.Models.csproj" />
+  <Project Path="SmartPOS.Reports/SmartPOS.Reports.csproj" />
+  <Project Path="SmartPOS.Services/SmartPOS.Services.csproj" />
+  <Project Path="SmartPOS.Tests/SmartPOS.Tests.csproj" />
+  <Project Path="SmartPOS.UI/SmartPOS.UI.csproj" />
+</Solution>
