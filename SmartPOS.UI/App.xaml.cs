@@ -8,6 +8,7 @@ using Serilog;
 using SmartPOS.Business;
 using SmartPOS.Data;
 using SmartPOS.Services;
+using SmartPOS.Models;
 
 namespace SmartPOS.UI;
 
@@ -18,8 +19,9 @@ public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
     public IConfiguration? Configuration { get; private set; }
+    private User? _currentUser;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         try
         {
@@ -77,16 +79,10 @@ public partial class App : Application
             Log.Information("Dependency injection configured");
             System.Console.WriteLine("✅ Dependency injection configured");
 
-            // Show main window
-            System.Console.WriteLine("📱 Creating main window...");
-            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-            System.Console.WriteLine("📱 Showing main window...");
-            mainWindow.Show();
-            System.Console.WriteLine("✅ Main window shown");
+            // Show login window first
+            System.Console.WriteLine("🔐 Showing login window...");
+            await ShowLoginWindowAsync();
 
-            Log.Information("Application started successfully");
-            System.Console.WriteLine("\n🎉 Application started successfully!");
-            System.Console.WriteLine("🪟 Smart POS window should now be visible.\n");
         }
         catch (Exception ex)
         {
@@ -96,6 +92,97 @@ public partial class App : Application
             MessageBox.Show($"Application failed to start:\n\n{ex.Message}\n\n{ex.StackTrace}", 
                 "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
+        }
+    }
+
+    private async Task ShowLoginWindowAsync()
+    {
+        try
+        {
+            var authService = _serviceProvider!.GetRequiredService<IAuthenticationService>();
+            var loginLogger = _serviceProvider.GetRequiredService<ILogger<LoginWindow>>();
+            
+            var loginWindow = new LoginWindow(authService, loginLogger);
+            var loginResult = loginWindow.ShowDialog();
+
+            if (loginResult == true && loginWindow.AuthenticatedUser != null)
+            {
+                _currentUser = loginWindow.AuthenticatedUser;
+                Log.Information("User logged in: {Username} ({Role})", 
+                    _currentUser.Username, _currentUser.Role?.Name ?? "Unknown");
+                System.Console.WriteLine($"✅ User logged in: {_currentUser.Username} ({_currentUser.Role?.Name})");
+                
+                // Ensure data is seeded
+                await EnsureDataSeededAsync();
+                
+                // Show main window
+                await ShowMainWindowAsync();
+            }
+            else
+            {
+                System.Console.WriteLine("❌ Login cancelled or failed");
+                Log.Information("Login cancelled by user");
+                Shutdown(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"❌ Login process failed: {ex.Message}");
+            Log.Error(ex, "Login process failed");
+            MessageBox.Show($"Login failed:\n{ex.Message}", "Login Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+    }
+
+    private async Task ShowMainWindowAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("📱 Creating main window...");
+            var mainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+            
+            // Update window title with user info
+            mainWindow.Title = $"Smart Retail POS Management System - {_currentUser?.FullName} ({_currentUser?.Role?.Name})";
+            
+            // Store current user in window tag for access by other components
+            mainWindow.Tag = _currentUser;
+            
+            System.Console.WriteLine("📱 Showing main window...");
+            mainWindow.Show();
+            System.Console.WriteLine("✅ Main window shown");
+
+            Log.Information("Application started successfully");
+            System.Console.WriteLine("\n🎉 Application started successfully!");
+            System.Console.WriteLine($"Welcome, {_currentUser?.FullName}!");
+            System.Console.WriteLine("🪟 Smart POS window should now be visible.\n");
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"❌ Failed to show main window: {ex.Message}");
+            Log.Error(ex, "Failed to show main window");
+            MessageBox.Show($"Failed to show main window:\n{ex.Message}", "Application Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+    }
+
+    private async Task EnsureDataSeededAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("🌱 Seeding database with initial data...");
+            var seedingService = _serviceProvider!.GetRequiredService<IDataSeedingService>();
+            
+            await seedingService.SeedInitialDataAsync();
+            await seedingService.SeedSampleDataAsync();
+            
+            Log.Information("Database seeding completed successfully");
+            System.Console.WriteLine("✅ Database seeding completed");
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"⚠️ Database seeding failed: {ex.Message}");
+            Log.Warning(ex, "Database seeding failed - continuing without seeded data");
+            // Don't fail the application if seeding fails
         }
     }
 
@@ -114,7 +201,7 @@ public partial class App : Application
   },
   ""ApplicationSettings"": {
     ""AppName"": ""Smart Retail POS Management System"",
-    ""Version"": ""1.0.0""
+    ""Version"": ""1.0.0 - Phase 2: User Authentication""
   }
 }";
         File.WriteAllText("appsettings.json", defaultConfig);
@@ -143,6 +230,8 @@ public partial class App : Application
 
         // Services
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<AuthenticationService>();
+        services.AddScoped<IDataSeedingService, DataSeedingService>();
 
         // Windows
         services.AddSingleton<MainWindow>();
