@@ -9,7 +9,6 @@ using Newtonsoft.Json.Linq;
 using SmartPOS.Models;
 using SmartPOS.Business;
 using Microsoft.Extensions.DependencyInjection;
-using Serilog;
 
 namespace SmartPOS.UI;
 
@@ -349,11 +348,10 @@ public partial class MainWindow : Window
             _logger.LogInformation("Opening User Management window");
             
             var authService = new AuthenticationService(_context);
-            // Create a Serilog logger for UserManagementWindow
-            var userMgmtLogger = Log.ForContext<UserManagementWindow>();
-            var msLogger = new SerilogLoggerWrapper<UserManagementWindow>(userMgmtLogger);
+            // Wrap the current logger to provide the correct type
+            var userMgmtLogger = new LoggerWrapper<UserManagementWindow>((ILogger)_logger);
 
-            var userManagementWindow = new UserManagementWindow(_context, authService, msLogger)
+            var userManagementWindow = new UserManagementWindow(_context, authService, userMgmtLogger)
             {
                 Owner = this
             };
