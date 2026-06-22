@@ -1,7 +1,7 @@
 <Window x:Class="SmartPOS.UI.DatabaseConfigWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Database Configuration" Height="500" Width="650"
+        Title="Database Configuration" Height="555" Width="650"
         WindowStartupLocation="CenterOwner"
         Background="#F5F5F5">
     <Grid Margin="20">
@@ -33,24 +33,41 @@
                 <!-- Connection Type -->
                 <GroupBox Header="Database Type" Margin="0,10" Padding="10">
                     <StackPanel>
-                        <RadioButton x:Name="LocalDBRadio" Content="SQL Server LocalDB (Recommended)" 
-                                   IsChecked="True" Margin="5" FontWeight="Bold" Foreground="#27AE60"/>
-                        <TextBlock Text="• Easy setup, no installation required" Margin="25,0,0,5" FontSize="11" Foreground="#7F8C8D"/>
-                        <TextBlock Text="• Perfect for development and testing" Margin="25,0,0,10" FontSize="11" Foreground="#7F8C8D"/>
+                        <RadioButton x:Name="SqliteRadio" Content="SQLite (Recommended - Single File)" 
+                                    IsChecked="True" Margin="5" FontWeight="Bold" Foreground="#27AE60"/>
+                        <TextBlock Text="• Zero configuration, single database file" Margin="25,0,0,5" FontSize="11" Foreground="#7F8C8D"/>
+                        <TextBlock Text="• Perfect for local development and standalone mode" Margin="25,0,0,10" FontSize="11" Foreground="#7F8C8D"/>
+
+                        <RadioButton x:Name="LocalDBRadio" Content="SQL Server LocalDB" 
+                                    Margin="5" FontWeight="Bold"/>
+                        <TextBlock Text="• Lightweight SQL Server for developers" Margin="25,0,0,5" FontSize="11" Foreground="#7F8C8D"/>
+                        <TextBlock Text="• No configuration, requires LocalDB installation" Margin="25,0,0,10" FontSize="11" Foreground="#7F8C8D"/>
                         
                         <RadioButton x:Name="SqlServerRadio" Content="SQL Server (Full Installation)" 
-                                   Margin="5" FontWeight="Bold"/>
-                        <TextBlock Text="• Requires SQL Server installation" Margin="25,0,0,5" FontSize="11" Foreground="#7F8C8D"/>
-                        <TextBlock Text="• Better for production environments" Margin="25,0,0,10" FontSize="11" Foreground="#7F8C8D"/>
+                                    Margin="5" FontWeight="Bold"/>
+                        <TextBlock Text="• Requires network or local SQL Server instance" Margin="25,0,0,5" FontSize="11" Foreground="#7F8C8D"/>
+                        <TextBlock Text="• Best for multi-branch or enterprise production" Margin="25,0,0,10" FontSize="11" Foreground="#7F8C8D"/>
                         
                         <RadioButton x:Name="CustomRadio" Content="Custom Connection String" 
-                                   Margin="5" FontWeight="Bold"/>
-                        <TextBlock Text="• Advanced users only" Margin="25,0,0,5" FontSize="11" Foreground="#E67E22"/>
+                                    Margin="5" FontWeight="Bold"/>
+                        <TextBlock Text="• Manually specify the connection string" Margin="25,0,0,5" FontSize="11" Foreground="#E67E22"/>
                     </StackPanel>
                 </GroupBox>
 
+                <!-- SQLite Configuration -->
+                <GroupBox x:Name="SqliteGroup" Header="SQLite Settings" Margin="0,10" Padding="10" Visibility="Visible">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Database File Name:" VerticalAlignment="Center" Margin="5"/>
+                        <TextBox x:Name="SqliteFileTextBox" Text="SmartPOS.db" Margin="5" Height="25"/>
+                    </Grid>
+                </GroupBox>
+
                 <!-- SQL Server Configuration -->
-                <GroupBox x:Name="SqlServerGroup" Header="SQL Server Settings" Margin="0,10" Padding="10">
+                <GroupBox x:Name="SqlServerGroup" Header="SQL Server Settings" Margin="0,10" Padding="10" Visibility="Collapsed">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="120"/>
@@ -99,10 +116,10 @@
                 <!-- Connection Preview -->
                 <GroupBox Header="Connection String Preview" Margin="0,10" Padding="10">
                     <TextBox x:Name="PreviewTextBox" 
-                           Height="50" 
-                           IsReadOnly="True" 
-                           Background="#ECF0F1"
-                           TextWrapping="Wrap"/>
+                            Height="50" 
+                            IsReadOnly="True" 
+                            Background="#ECF0F1"
+                            TextWrapping="Wrap"/>
                 </GroupBox>
             </StackPanel>
         </ScrollViewer>

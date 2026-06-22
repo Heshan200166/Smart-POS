@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
 
 namespace SmartPOS.UI;
 
@@ -25,14 +26,74 @@ public partial class DatabaseConfigWindow : Window
 
     private void InitializeUI()
     {
-        // Load current connection string
-        var currentConnection = _configuration.GetConnectionString("DefaultConnection");
-        if (!string.IsNullOrEmpty(currentConnection))
+        // Load current config from file to ensure we display actual current settings
+        string provider = "SQLite";
+        string currentConnection = "";
+
+        try
         {
-            PreviewTextBox.Text = currentConnection;
+            var configPath = "appsettings.json";
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                var jsonObj = JObject.Parse(json);
+                provider = jsonObj["DatabaseProvider"]?.ToString() ?? "SQLite";
+                currentConnection = jsonObj["ConnectionStrings"]?["DefaultConnection"]?.ToString() ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load database config for initialization");
+        }
+
+        // Set radio buttons based on provider and connection string content
+        if (provider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            SqliteRadio.IsChecked = true;
+            if (!string.IsNullOrEmpty(currentConnection))
+            {
+                // Extract filename from "Data Source=Filename.db"
+                var match = currentConnection.Replace("Data Source=", "").Trim();
+                SqliteFileTextBox.Text = string.IsNullOrEmpty(match) ? "SmartPOS.db" : match;
+            }
+        }
+        else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentConnection.Contains("(localdb)", StringComparison.OrdinalIgnoreCase))
+            {
+                LocalDBRadio.IsChecked = true;
+            }
+            else if (!string.IsNullOrEmpty(currentConnection))
+            {
+                SqlServerRadio.IsChecked = true;
+                // Parse server/database details roughly for UI convenience
+                try
+                {
+                    var builder = new SqlConnectionStringBuilder(currentConnection);
+                    ServerTextBox.Text = builder.DataSource;
+                    DatabaseTextBox.Text = builder.InitialCatalog;
+                    WindowsAuthCheckBox.IsChecked = builder.IntegratedSecurity;
+                    if (!builder.IntegratedSecurity)
+                    {
+                        UsernameTextBox.Text = builder.UserID;
+                        PasswordBox.Password = builder.Password;
+                    }
+                }
+                catch
+                {
+                    // If parsing failed, fall back to Custom
+                    CustomRadio.IsChecked = true;
+                    CustomConnectionTextBox.Text = currentConnection;
+                }
+            }
+            else
+            {
+                LocalDBRadio.IsChecked = true;
+            }
         }
 
         // Setup event handlers
+        SqliteRadio.Checked += OnConnectionTypeChanged;
         LocalDBRadio.Checked += OnConnectionTypeChanged;
         SqlServerRadio.Checked += OnConnectionTypeChanged;
         CustomRadio.Checked += OnConnectionTypeChanged;
@@ -40,6 +101,7 @@ public partial class DatabaseConfigWindow : Window
         WindowsAuthCheckBox.Unchecked += OnAuthTypeChanged;
 
         // Setup text change handlers for real-time preview
+        SqliteFileTextBox.TextChanged += OnSettingsChanged;
         ServerTextBox.TextChanged += OnSettingsChanged;
         DatabaseTextBox.TextChanged += OnSettingsChanged;
         UsernameTextBox.TextChanged += OnSettingsChanged;
@@ -81,21 +143,9 @@ public partial class DatabaseConfigWindow : Window
 
     private void UpdateUI()
     {
-        if (LocalDBRadio.IsChecked == true)
-        {
-            SqlServerGroup.Visibility = Visibility.Collapsed;
-            CustomGroup.Visibility = Visibility.Collapsed;
-        }
-        else if (SqlServerRadio.IsChecked == true)
-        {
-            SqlServerGroup.Visibility = Visibility.Visible;
-            CustomGroup.Visibility = Visibility.Collapsed;
-        }
-        else if (CustomRadio.IsChecked == true)
-        {
-            SqlServerGroup.Visibility = Visibility.Collapsed;
-            CustomGroup.Visibility = Visibility.Visible;
-        }
+        SqliteGroup.Visibility = SqliteRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        SqlServerGroup.Visibility = SqlServerRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        CustomGroup.Visibility = CustomRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdatePreview()
@@ -104,7 +154,12 @@ public partial class DatabaseConfigWindow : Window
         {
             string connectionString = "";
 
-            if (LocalDBRadio.IsChecked == true)
+            if (SqliteRadio.IsChecked == true)
+            {
+                var file = string.IsNullOrEmpty(SqliteFileTextBox.Text) ? "SmartPOS.db" : SqliteFileTextBox.Text;
+                connectionString = $"Data Source={file}";
+            }
+            else if (LocalDBRadio.IsChecked == true)
             {
                 connectionString = "Server=(localdb)\\mssqllocaldb;Database=SmartPOS;Trusted_Connection=true;TrustServerCertificate=true;";
             }
@@ -157,8 +212,16 @@ public partial class DatabaseConfigWindow : Window
                 return;
             }
 
-            using var connection = new SqlConnection(connectionString);
-            await connection.OpenAsync();
+            if (SqliteRadio.IsChecked == true)
+            {
+                using var connection = new SqliteConnection(connectionString);
+                await connection.OpenAsync();
+            }
+            else
+            {
+                using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync();
+            }
             
             MessageBox.Show("✅ Database connection successful!\n\nConnection is working properly.", 
                 "Test Successful", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -170,10 +233,10 @@ public partial class DatabaseConfigWindow : Window
             var errorMessage = "❌ Database connection failed!\n\n" +
                              $"Error: {ex.Message}\n\n" +
                              "Common solutions:\n" +
-                             "• Check server name and database name\n" +
+                             "• Verify the file path if using SQLite\n" +
+                             "• Check server name and database name if using SQL Server\n" +
                              "• Verify SQL Server is running\n" +
-                             "• Check username/password if using SQL auth\n" +
-                             "• Try LocalDB for development";
+                             "• Check credentials if using SQL auth";
                              
             MessageBox.Show(errorMessage, "Connection Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -196,12 +259,13 @@ public partial class DatabaseConfigWindow : Window
                 return;
             }
 
+            string provider = SqliteRadio.IsChecked == true ? "SQLite" : "SqlServer";
+
             // Update appsettings.json
-            UpdateAppSettings(connectionString);
+            UpdateAppSettings(provider, connectionString);
 
             MessageBox.Show("✅ Database configuration saved!\n\n" +
-                           "The application will use the new connection string.\n" +
-                           "Restart the application to apply changes.", 
+                           "The application will use the new connection settings.", 
                            "Configuration Saved", 
                            MessageBoxButton.OK, 
                            MessageBoxImage.Information);
@@ -216,51 +280,55 @@ public partial class DatabaseConfigWindow : Window
         }
     }
 
-    private void UpdateAppSettings(string connectionString)
+    private void UpdateAppSettings(string provider, string connectionString)
     {
         var appSettingsPath = "appsettings.json";
+        JObject jsonObj;
         
         if (!File.Exists(appSettingsPath))
         {
-            // Create new appsettings if it doesn't exist
-            var newSettings = new
-            {
-                ConnectionStrings = new { DefaultConnection = connectionString },
-                Logging = new
-                {
-                    LogLevel = new
-                    {
-                        Default = "Information",
-                        Microsoft = "Warning",
-                        Microsoft_EntityFrameworkCore = "Information"
-                    }
-                },
-                ApplicationSettings = new
-                {
-                    AppName = "Smart Retail POS Management System",
-                    Version = "1.0.0"
-                }
-            };
-            
-            var json = JsonConvert.SerializeObject(newSettings, Formatting.Indented);
-            File.WriteAllText(appSettingsPath, json);
+            jsonObj = new JObject();
         }
         else
         {
-            // Update existing appsettings
             var json = File.ReadAllText(appSettingsPath);
-            var jsonObj = JObject.Parse(json);
-            
-            if (jsonObj["ConnectionStrings"] == null)
-                jsonObj["ConnectionStrings"] = new JObject();
-                
-            jsonObj["ConnectionStrings"]["DefaultConnection"] = connectionString;
-            
-            var updatedJson = JsonConvert.SerializeObject(jsonObj, Formatting.Indented);
-            File.WriteAllText(appSettingsPath, updatedJson);
+            jsonObj = JObject.Parse(json);
         }
         
-        _logger.LogInformation("Connection string updated in appsettings.json");
+        // Update values
+        jsonObj["DatabaseProvider"] = provider;
+        
+        if (jsonObj["ConnectionStrings"] == null)
+            jsonObj["ConnectionStrings"] = new JObject();
+            
+        jsonObj["ConnectionStrings"]!["DefaultConnection"] = connectionString;
+
+        if (jsonObj["Logging"] == null)
+        {
+            jsonObj["Logging"] = JObject.FromObject(new
+            {
+                LogLevel = new
+                {
+                    Default = "Information",
+                    Microsoft = "Warning",
+                    Microsoft_EntityFrameworkCore = "Information"
+                }
+            });
+        }
+
+        if (jsonObj["ApplicationSettings"] == null)
+        {
+            jsonObj["ApplicationSettings"] = JObject.FromObject(new
+            {
+                AppName = "Smart Retail POS Management System",
+                Version = "1.0.0"
+            });
+        }
+        
+        var updatedJson = JsonConvert.SerializeObject(jsonObj, Formatting.Indented);
+        File.WriteAllText(appSettingsPath, updatedJson);
+        
+        _logger.LogInformation("Database connection settings updated in appsettings.json: Provider={Provider}", provider);
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)

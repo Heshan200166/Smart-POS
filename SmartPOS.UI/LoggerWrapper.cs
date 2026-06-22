@@ -14,7 +14,7 @@ public class LoggerWrapper<T> : ILogger<T>
         _logger = logger;
     }
 
-    public IDisposable BeginScope<TState>(TState state) => _logger.BeginScope(state);
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _logger.BeginScope(state);
 
     public bool IsEnabled(LogLevel logLevel) => _logger.IsEnabled(logLevel);
 

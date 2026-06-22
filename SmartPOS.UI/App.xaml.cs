@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -101,14 +101,7 @@ public partial class App : Application
         {
             System.Console.WriteLine("🗄️ Creating database setup window...");
             
-            var scope = _serviceProvider!.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<MainWindow>>();
-            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            
-            var setupWindow = new MainWindow(context, logger, configuration);
-            setupWindow.Title = "Smart POS - Database Setup & Initialization";
-            setupWindow.Tag = "SetupMode"; // Flag to indicate this is setup mode
+            var setupWindow = _serviceProvider!.GetRequiredService<DatabaseSetupWindow>();
             
             System.Console.WriteLine("✅ Showing database setup window...");
             var setupResult = setupWindow.ShowDialog();
@@ -162,8 +155,8 @@ public partial class App : Application
                 System.Console.WriteLine("⚠️ WARNING: No users found in database!");
             }
             
-            var authService = _serviceProvider.GetRequiredService<IAuthenticationService>();
-            var loginLogger = _serviceProvider.GetRequiredService<ILogger<LoginWindow>>();
+            var authService = _serviceProvider!.GetRequiredService<IAuthenticationService>();
+            var loginLogger = _serviceProvider!.GetRequiredService<ILogger<LoginWindow>>();
             
             var loginWindow = new LoginWindow(authService, loginLogger);
             var loginResult = loginWindow.ShowDialog();
@@ -310,12 +303,25 @@ public partial class App : Application
             configure.AddSerilog();
         });
 
-        // Database - Using SQLite instead of SQL Server
+        // Database - Dynamic configuration based on appsettings.json
         services.AddDbContext<ApplicationDbContext>(options =>
         {
-            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "SmartPOS.db");
-            System.Console.WriteLine($"📊 Database location: {dbPath}");
-            options.UseSqlite($"Data Source={dbPath}");
+            var provider = Configuration?["DatabaseProvider"] ?? "SQLite";
+            var connectionString = Configuration?.GetConnectionString("DefaultConnection");
+
+            if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                connectionString ??= "Server=(localdb)\\mssqllocaldb;Database=SmartPOS;Trusted_Connection=true;TrustServerCertificate=true;";
+                System.Console.WriteLine($"📊 Database Provider: SQL Server | Connection: {connectionString}");
+                options.UseSqlServer(connectionString);
+            }
+            else
+            {
+                connectionString ??= $"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "SmartPOS.db")}";
+                System.Console.WriteLine($"📊 Database Provider: SQLite | Connection: {connectionString}");
+                options.UseSqlite(connectionString);
+            }
+
             // Suppress pending model changes warning - safe for development
             options.ConfigureWarnings(warnings => 
                 warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
@@ -328,6 +334,7 @@ public partial class App : Application
 
         // Windows - Transient so we get a new instance each time
         services.AddTransient<MainWindow>();
+        services.AddTransient<DatabaseSetupWindow>();
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
@@ -21,8 +21,6 @@ public partial class MainWindow : Window
     private readonly ILogger<MainWindow> _logger;
     private readonly IConfiguration _configuration;
     private User? _currentUser;
-    private bool _isSetupMode = false;
-    private bool _databaseInitialized = false;
 
     public MainWindow(ApplicationDbContext context, ILogger<MainWindow> logger, IConfiguration configuration)
     {
@@ -42,35 +40,12 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        // Check if this is setup mode
-        if (Tag is string mode && mode == "SetupMode")
-        {
-            _isSetupMode = true;
-            SetupForInitialSetup();
-        }
         // Get current user from Tag (set by App.xaml.cs) for application mode
-        else if (Tag is User user)
+        if (Tag is User user)
         {
             _currentUser = user;
-            _isSetupMode = false;
             UpdateUIForUser();
         }
-    }
-
-    private void SetupForInitialSetup()
-    {
-        // Show setup instructions and proceed button
-        ProceedToLoginButton.Visibility = Visibility.Visible;
-        SetupInstructions.Visibility = Visibility.Visible;
-
-        // Hide logout button and user info in setup mode
-        LogoutButton.Visibility = Visibility.Collapsed;
-        CurrentUserText.Visibility = Visibility.Collapsed;
-
-        // Hide admin panel in setup mode
-        AdminPanel.Visibility = Visibility.Collapsed;
-
-        _logger.LogInformation("MainWindow configured for setup mode");
     }
 
     private void UpdateUIForUser()
@@ -118,8 +93,8 @@ public partial class MainWindow : Window
                 {
                     DbStatusIcon.Text = "⚠️ ";
                     DbStatusIcon.Foreground = System.Windows.Media.Brushes.Orange;
-                    DbStatusText.Text = "Database Not Connected (Click to configure)";
-                    StatusText.Text = "Database configuration needed";
+                    DbStatusText.Text = "Database Connection Offline";
+                    StatusText.Text = "Database offline";
                 }
             });
         }
@@ -129,250 +104,9 @@ public partial class MainWindow : Window
             Dispatcher.Invoke(() => {
                 DbStatusIcon.Text = "⚠️ ";
                 DbStatusIcon.Foreground = System.Windows.Media.Brushes.Orange;
-                DbStatusText.Text = "Database Configuration Required";
-                StatusText.Text = "Database setup needed";
+                DbStatusText.Text = "Database Error";
+                StatusText.Text = "Database connection error";
             });
-        }
-    }
-
-    private async void TestConnection_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            StatusText.Text = "Testing database connection...";
-            _logger.LogInformation("Testing database connection");
-
-            bool canConnect = await _context.Database.CanConnectAsync();
-
-            if (canConnect)
-            {
-                DbStatusIcon.Text = "✓ ";
-                DbStatusIcon.Foreground = System.Windows.Media.Brushes.Green;
-                DbStatusText.Text = "Database Connected Successfully";
-                StatusText.Text = "Database connection successful!";
-                _logger.LogInformation("Database connection successful");
-                MessageBox.Show("✅ Database connection successful!\n\nYou can now initialize the database.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            else
-            {
-                ShowDatabaseSetupDialog();
-            }
-        }
-        catch (Exception ex)
-        {
-            DbStatusIcon.Text = "⚠️ ";
-            DbStatusIcon.Foreground = System.Windows.Media.Brushes.Orange;
-            DbStatusText.Text = "Database Configuration Needed";
-            StatusText.Text = "Database setup required";
-            _logger.LogWarning(ex, "Database connection failed");
-            ShowDatabaseSetupDialog();
-        }
-    }
-
-    private void ShowDatabaseSetupDialog()
-    {
-        var result = MessageBox.Show(
-            "❌ Database connection failed!\n\n" +
-            "Would you like to:\n" +
-            "• YES - Configure database connection\n" +
-            "• NO - Use default LocalDB (recommended)\n" +
-            "• CANCEL - Skip for now",
-            "Database Setup", 
-            MessageBoxButton.YesNoCancel, 
-            MessageBoxImage.Question);
-
-        switch (result)
-        {
-            case MessageBoxResult.Yes:
-                ShowDatabaseConfigurationWindow();
-                break;
-            case MessageBoxResult.No:
-                ConfigureLocalDB();
-                break;
-            case MessageBoxResult.Cancel:
-                StatusText.Text = "Database configuration skipped";
-                break;
-        }
-    }
-
-    private void ShowDatabaseConfigurationWindow()
-    {
-        var configWindow = new DatabaseConfigWindow(_configuration, _logger);
-        if (configWindow.ShowDialog() == true)
-        {
-            // Restart application or reload configuration
-            MessageBox.Show("Database configuration updated!\n\nPlease restart the application to apply changes.", 
-                "Configuration Updated", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
-
-    private async void ConfigureLocalDB()
-    {
-        try
-        {
-            StatusText.Text = "Configuring LocalDB...";
-            
-            // Update connection string to LocalDB
-            var localDbConnection = "Server=(localdb)\\mssqllocaldb;Database=SmartPOS;Trusted_Connection=true;TrustServerCertificate=true;";
-            UpdateConnectionString(localDbConnection);
-            
-            StatusText.Text = "LocalDB configured. Testing connection...";
-            await Task.Delay(1000);
-            
-            // Test the new connection (would need app restart in real scenario)
-            MessageBox.Show("✅ LocalDB configured successfully!\n\n" +
-                           "Connection String: Server=(localdb)\\mssqllocaldb\n" +
-                           "Database: SmartPOS\n\n" +
-                           "Please restart the application to apply changes.", 
-                           "LocalDB Setup Complete", 
-                           MessageBoxButton.OK, 
-                           MessageBoxImage.Information);
-                           
-            DbStatusIcon.Text = "🔄 ";
-            DbStatusIcon.Foreground = System.Windows.Media.Brushes.Blue;
-            DbStatusText.Text = "LocalDB Configured - Restart Required";
-            StatusText.Text = "LocalDB configured - restart needed";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to configure LocalDB");
-            MessageBox.Show($"Failed to configure LocalDB:\n{ex.Message}", "Configuration Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void UpdateConnectionString(string connectionString)
-    {
-        try
-        {
-            var appSettingsPath = "appsettings.json";
-            var json = File.ReadAllText(appSettingsPath);
-            var jsonObj = JObject.Parse(json);
-            
-            jsonObj["ConnectionStrings"]["DefaultConnection"] = connectionString;
-            
-            var updatedJson = JsonConvert.SerializeObject(jsonObj, Formatting.Indented);
-            File.WriteAllText(appSettingsPath, updatedJson);
-            
-            _logger.LogInformation("Connection string updated in appsettings.json");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update connection string");
-            throw;
-        }
-    }
-
-    private async void InitializeDatabase_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            StatusText.Text = "Initializing database...";
-            _logger.LogInformation("Starting database initialization");
-
-            // Show progress
-            var progressDialog = new DatabaseProgressWindow();
-            progressDialog.Show();
-            
-            await Task.Delay(500); // Brief pause for UI
-
-            progressDialog.UpdateProgress("Creating database...", 20);
-            await Task.Delay(500);
-
-            // Create database and apply migrations
-            await _context.Database.MigrateAsync();
-
-            progressDialog.UpdateProgress("Applying migrations...", 60);
-            await Task.Delay(500);
-
-            // Verify tables exist
-            var tablesExist = await _context.Database.CanConnectAsync();
-            
-            progressDialog.UpdateProgress("Verifying setup...", 90);
-            await Task.Delay(500);
-
-            progressDialog.UpdateProgress("Complete!", 100);
-            await Task.Delay(1000);
-
-            progressDialog.Close();
-
-            DbStatusIcon.Text = "✓ ";
-            DbStatusIcon.Foreground = System.Windows.Media.Brushes.Green;
-            DbStatusText.Text = "Database Ready - All Tables Created";
-            StatusText.Text = "Database initialized successfully!";
-            
-            _databaseInitialized = true;
-            
-            _logger.LogInformation("Database initialized successfully");
-            
-            MessageBox.Show("🎉 Database initialization complete!\n\n" +
-                           "✅ Database created\n" +
-                           "✅ Tables created\n" +
-                           "✅ Default roles added\n" +
-                           "✅ Ready for use!\n\n" +
-                           "Your Smart POS system is now ready!", 
-                           "Initialization Complete", 
-                           MessageBoxButton.OK, 
-                           MessageBoxImage.Information);
-            
-            // If in setup mode, enable the proceed button
-            if (_isSetupMode)
-            {
-                ProceedToLoginButton.IsEnabled = true;
-                ProceedToLoginButton.Background = System.Windows.Media.Brushes.Green;
-                SetupInstructions.Text = "✅ Database initialized! Click Continue to Login";
-                SetupInstructions.Foreground = System.Windows.Media.Brushes.Green;
-            }
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Initialization failed: {ex.Message}";
-            _logger.LogError(ex, "Error initializing database");
-            
-            var errorMsg = "❌ Database initialization failed!\n\n" +
-                          $"Error: {ex.Message}\n\n" +
-                          "Possible solutions:\n" +
-                          "• Check if SQL Server is installed\n" +
-                          "• Verify connection string\n" +
-                          "• Try configuring LocalDB\n" +
-                          "• Check application logs";
-                          
-            MessageBox.Show(errorMsg, "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void ConfigureDatabase_Click(object sender, RoutedEventArgs e)
-    {
-        ShowDatabaseConfigurationWindow();
-    }
-
-    private void ProceedToLogin_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (!_databaseInitialized)
-            {
-                var result = MessageBox.Show(
-                    "⚠️ Database has not been initialized yet!\n\n" +
-                    "Would you like to proceed to login anyway?\n\n" +
-                    "Note: The system will attempt to initialize the database automatically during login.",
-                    "Database Not Initialized",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            _logger.LogInformation("User confirmed database setup, proceeding to login");
-            DialogResult = true; // Signal success to App.xaml.cs to proceed to login
-            Close();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error proceeding to login");
-            MessageBox.Show("Error proceeding to login. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
