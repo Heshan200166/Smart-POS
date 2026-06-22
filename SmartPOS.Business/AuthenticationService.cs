@@ -20,20 +20,42 @@ public class AuthenticationService : IAuthenticationService
 
     public async Task<User?> LoginAsync(string username, string password)
     {
-        var user = await _context.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
+        try
+        {
+            Console.WriteLine($"[AuthService] Login attempt for user: {username}");
+            
+            var user = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
 
-        if (user == null)
-            return null;
+            Console.WriteLine($"[AuthService] User found in database: {user != null}");
 
-        if (!VerifyPassword(password, user.PasswordHash))
-            return null;
+            if (user == null)
+            {
+                Console.WriteLine($"[AuthService] User not found or inactive: {username}");
+                return null;
+            }
 
-        user.LastLoginAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+            Console.WriteLine($"[AuthService] Verifying password...");
+            if (!VerifyPassword(password, user.PasswordHash))
+            {
+                Console.WriteLine($"[AuthService] Password verification failed");
+                return null;
+            }
 
-        return user;
+            Console.WriteLine($"[AuthService] Password verified successfully");
+            user.LastLoginAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            Console.WriteLine($"[AuthService] Login successful for {username}");
+            return user;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AuthService] Login error: {ex.Message}");
+            Console.WriteLine($"[AuthService] Stack trace: {ex.StackTrace}");
+            throw;
+        }
     }
 
     public async Task<bool> LogoutAsync(int userId)

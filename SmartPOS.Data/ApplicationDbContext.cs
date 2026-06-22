@@ -51,11 +51,13 @@ public class ApplicationDbContext : DbContext
         });
 
         // Seed default roles
+        // Use static date to avoid pending model changes warning
+        var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         modelBuilder.Entity<Role>().HasData(
-            new Role { Id = 1, Name = "Admin", Description = "Full system access", CreatedAt = DateTime.UtcNow },
-            new Role { Id = 2, Name = "Manager", Description = "Inventory and reporting access", CreatedAt = DateTime.UtcNow },
-            new Role { Id = 3, Name = "Cashier", Description = "Sales processing access", CreatedAt = DateTime.UtcNow },
-            new Role { Id = 4, Name = "InventoryStaff", Description = "Stock management access", CreatedAt = DateTime.UtcNow }
+            new Role { Id = 1, Name = "Admin", Description = "Full system access", CreatedAt = seedDate },
+            new Role { Id = 2, Name = "Manager", Description = "Inventory and reporting access", CreatedAt = seedDate },
+            new Role { Id = 3, Name = "Cashier", Description = "Sales processing access", CreatedAt = seedDate },
+            new Role { Id = 4, Name = "InventoryStaff", Description = "Stock management access", CreatedAt = seedDate }
         );
 
         // Global query filters

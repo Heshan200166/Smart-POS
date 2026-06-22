@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private readonly ILogger<MainWindow> _logger;
     private readonly IConfiguration _configuration;
     private User? _currentUser;
+    private bool _isSetupMode = false;
+    private bool _databaseInitialized = false;
 
     public MainWindow(ApplicationDbContext context, ILogger<MainWindow> logger, IConfiguration configuration)
     {
@@ -40,12 +42,35 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        // Get current user from Tag (set by App.xaml.cs)
-        if (Tag is User user)
+        // Check if this is setup mode
+        if (Tag is string mode && mode == "SetupMode")
+        {
+            _isSetupMode = true;
+            SetupForInitialSetup();
+        }
+        // Get current user from Tag (set by App.xaml.cs) for application mode
+        else if (Tag is User user)
         {
             _currentUser = user;
+            _isSetupMode = false;
             UpdateUIForUser();
         }
+    }
+
+    private void SetupForInitialSetup()
+    {
+        // Show setup instructions and proceed button
+        ProceedToLoginButton.Visibility = Visibility.Visible;
+        SetupInstructions.Visibility = Visibility.Visible;
+
+        // Hide logout button and user info in setup mode
+        LogoutButton.Visibility = Visibility.Collapsed;
+        CurrentUserText.Visibility = Visibility.Collapsed;
+
+        // Hide admin panel in setup mode
+        AdminPanel.Visibility = Visibility.Collapsed;
+
+        _logger.LogInformation("MainWindow configured for setup mode");
     }
 
     private void UpdateUIForUser()
@@ -275,6 +300,8 @@ public partial class MainWindow : Window
             DbStatusText.Text = "Database Ready - All Tables Created";
             StatusText.Text = "Database initialized successfully!";
             
+            _databaseInitialized = true;
+            
             _logger.LogInformation("Database initialized successfully");
             
             MessageBox.Show("🎉 Database initialization complete!\n\n" +
@@ -286,6 +313,15 @@ public partial class MainWindow : Window
                            "Initialization Complete", 
                            MessageBoxButton.OK, 
                            MessageBoxImage.Information);
+            
+            // If in setup mode, enable the proceed button
+            if (_isSetupMode)
+            {
+                ProceedToLoginButton.IsEnabled = true;
+                ProceedToLoginButton.Background = System.Windows.Media.Brushes.Green;
+                SetupInstructions.Text = "✅ Database initialized! Click Continue to Login";
+                SetupInstructions.Foreground = System.Windows.Media.Brushes.Green;
+            }
         }
         catch (Exception ex)
         {
@@ -307,6 +343,37 @@ public partial class MainWindow : Window
     private void ConfigureDatabase_Click(object sender, RoutedEventArgs e)
     {
         ShowDatabaseConfigurationWindow();
+    }
+
+    private void ProceedToLogin_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!_databaseInitialized)
+            {
+                var result = MessageBox.Show(
+                    "⚠️ Database has not been initialized yet!\n\n" +
+                    "Would you like to proceed to login anyway?\n\n" +
+                    "Note: The system will attempt to initialize the database automatically during login.",
+                    "Database Not Initialized",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            _logger.LogInformation("User confirmed database setup, proceeding to login");
+            DialogResult = true; // Signal success to App.xaml.cs to proceed to login
+            Close();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error proceeding to login");
+            MessageBox.Show("Error proceeding to login. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Logout_Click(object sender, RoutedEventArgs e)

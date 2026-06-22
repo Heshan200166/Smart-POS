@@ -77,14 +77,32 @@ public partial class LoginWindow : Window
             StatusMessage.Visibility = Visibility.Collapsed;
 
             _logger.LogInformation("Attempting login for user: {Username}", username);
+            System.Console.WriteLine($"[LoginWindow] Attempting login for: {username}");
+
+            // Add timeout to prevent hanging
+            var loginTask = _authService.LoginAsync(username, password);
+            var timeoutTask = Task.Delay(10000); // 10 second timeout
+
+            var completedTask = await Task.WhenAny(loginTask, timeoutTask);
+
+            if (completedTask == timeoutTask)
+            {
+                System.Console.WriteLine($"[LoginWindow] Login timeout after 10 seconds");
+                ShowStatusMessage("Login timeout. Database may not be initialized.", false);
+                LoginButton.Content = "LOGIN";
+                LoginButton.IsEnabled = true;
+                return;
+            }
 
             // Attempt authentication
-            var user = await _authService.LoginAsync(username, password);
+            var user = await loginTask;
 
             if (user != null)
             {
                 _logger.LogInformation("Login successful for user: {Username}, Role: {Role}", 
                     user.Username, user.Role?.Name ?? "Unknown");
+                System.Console.WriteLine($"[LoginWindow] Login successful: {username}");
+                System.Console.WriteLine($"[LoginWindow] Setting DialogResult = true");
 
                 AuthenticatedUser = user;
 
@@ -95,19 +113,41 @@ public partial class LoginWindow : Window
                     _logger.LogInformation("Remember me option selected for user: {Username}", username);
                 }
 
+                System.Console.WriteLine($"[LoginWindow] About to set DialogResult and close window");
                 DialogResult = true;
+                System.Console.WriteLine($"[LoginWindow] DialogResult set, now closing...");
                 Close();
+                System.Console.WriteLine($"[LoginWindow] Window closed");
             }
             else
             {
                 _logger.LogWarning("Login failed for user: {Username}", username);
+                System.Console.WriteLine($"[LoginWindow] Login failed: Invalid credentials");
+                System.Console.WriteLine($"[LoginWindow] User object was NULL - authentication failed");
+                
+                // Show detailed error to help debug
+                MessageBox.Show(
+                    $"Login failed for user: {username}\n\n" +
+                    "Possible reasons:\n" +
+                    "• Wrong username or password\n" +
+                    "• User account not active\n" +
+                    "• Database not initialized\n\n" +
+                    "Try:\n" +
+                    "• Username: admin\n" +
+                    "• Password: admin123",
+                    "Login Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                
                 ShowStatusMessage("Invalid username or password.", false);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during login attempt for user: {Username}", username);
-            ShowStatusMessage("Login error occurred. Please try again.", false);
+            System.Console.WriteLine($"[LoginWindow] Login error: {ex.Message}");
+            System.Console.WriteLine($"[LoginWindow] Stack trace: {ex.StackTrace}");
+            ShowStatusMessage($"Login error: {ex.Message}", false);
         }
         finally
         {

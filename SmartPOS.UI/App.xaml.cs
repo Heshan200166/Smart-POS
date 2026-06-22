@@ -79,9 +79,9 @@ public partial class App : Application
             Log.Information("Dependency injection configured");
             System.Console.WriteLine("✅ Dependency injection configured");
 
-            // Show login window first
-            System.Console.WriteLine("🔐 Showing login window...");
-            await ShowLoginWindowAsync();
+            // Show database setup window FIRST
+            System.Console.WriteLine("🗄️ Showing database setup window...");
+            await ShowDatabaseSetupWindowAsync();
 
         }
         catch (Exception ex)
@@ -95,15 +95,81 @@ public partial class App : Application
         }
     }
 
+    private async Task ShowDatabaseSetupWindowAsync()
+    {
+        try
+        {
+            System.Console.WriteLine("🗄️ Creating database setup window...");
+            
+            var scope = _serviceProvider!.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<MainWindow>>();
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            
+            var setupWindow = new MainWindow(context, logger, configuration);
+            setupWindow.Title = "Smart POS - Database Setup & Initialization";
+            setupWindow.Tag = "SetupMode"; // Flag to indicate this is setup mode
+            
+            System.Console.WriteLine("✅ Showing database setup window...");
+            var setupResult = setupWindow.ShowDialog();
+
+            if (setupResult == true)
+            {
+                System.Console.WriteLine("✅ Database setup completed, proceeding to login...");
+                await ShowLoginWindowAsync();
+            }
+            else
+            {
+                System.Console.WriteLine("❌ Database setup cancelled");
+                Log.Information("Database setup cancelled by user");
+                Shutdown(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"❌ Database setup failed: {ex.Message}");
+            System.Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            Log.Error(ex, "Database setup failed");
+            MessageBox.Show($"Database setup failed:\n{ex.Message}\n\nPlease check the console for details.", "Setup Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+    }
+
     private async Task ShowLoginWindowAsync()
     {
         try
         {
-            var authService = _serviceProvider!.GetRequiredService<IAuthenticationService>();
+            // IMPORTANT: Ensure database and data are seeded BEFORE showing login
+            System.Console.WriteLine("🔧 Initializing database and default users...");
+            await EnsureDatabaseInitializedAsync();
+            
+            // DEBUG: Verify users were created
+            var context = _serviceProvider!.GetRequiredService<ApplicationDbContext>();
+            var userCount = await context.Users.CountAsync();
+            System.Console.WriteLine($"📊 DEBUG: Total users in database: {userCount}");
+            
+            if (userCount > 0)
+            {
+                var users = await context.Users.Include(u => u.Role).ToListAsync();
+                System.Console.WriteLine("📋 DEBUG: Users in database:");
+                foreach (var u in users)
+                {
+                    System.Console.WriteLine($"   - {u.Username} ({u.Role?.Name}) - Active: {u.IsActive}");
+                }
+            }
+            else
+            {
+                System.Console.WriteLine("⚠️ WARNING: No users found in database!");
+            }
+            
+            var authService = _serviceProvider.GetRequiredService<IAuthenticationService>();
             var loginLogger = _serviceProvider.GetRequiredService<ILogger<LoginWindow>>();
             
             var loginWindow = new LoginWindow(authService, loginLogger);
             var loginResult = loginWindow.ShowDialog();
+
+            System.Console.WriteLine($"🔍 DEBUG: Login dialog result: {loginResult}");
+            System.Console.WriteLine($"🔍 DEBUG: Authenticated user: {loginWindow.AuthenticatedUser?.Username}");
 
             if (loginResult == true && loginWindow.AuthenticatedUser != null)
             {
@@ -112,10 +178,7 @@ public partial class App : Application
                     _currentUser.Username, _currentUser.Role?.Name ?? "Unknown");
                 System.Console.WriteLine($"✅ User logged in: {_currentUser.Username} ({_currentUser.Role?.Name})");
                 
-                // Ensure data is seeded
-                await EnsureDataSeededAsync();
-                
-                // Show main window
+                // Show main POS application window
                 await ShowMainWindowAsync();
             }
             else
@@ -128,8 +191,9 @@ public partial class App : Application
         catch (Exception ex)
         {
             System.Console.WriteLine($"❌ Login process failed: {ex.Message}");
+            System.Console.WriteLine($"Stack Trace: {ex.StackTrace}");
             Log.Error(ex, "Login process failed");
-            MessageBox.Show($"Login failed:\n{ex.Message}", "Login Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Login failed:\n{ex.Message}\n\nPlease check the console for details.", "Login Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
@@ -139,7 +203,14 @@ public partial class App : Application
         try
         {
             System.Console.WriteLine("📱 Creating main window...");
-            var mainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+            
+            // Create a new scope for the main window
+            var scope = _serviceProvider!.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<MainWindow>>();
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            
+            var mainWindow = new MainWindow(context, logger, configuration);
             
             // Update window title with user info
             mainWindow.Title = $"Smart Retail POS Management System - {_currentUser?.FullName} ({_currentUser?.Role?.Name})";
@@ -159,30 +230,49 @@ public partial class App : Application
         catch (Exception ex)
         {
             System.Console.WriteLine($"❌ Failed to show main window: {ex.Message}");
+            System.Console.WriteLine($"Stack Trace: {ex.StackTrace}");
             Log.Error(ex, "Failed to show main window");
             MessageBox.Show($"Failed to show main window:\n{ex.Message}", "Application Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
 
-    private async Task EnsureDataSeededAsync()
+    private async Task EnsureDatabaseInitializedAsync()
     {
         try
         {
-            System.Console.WriteLine("🌱 Seeding database with initial data...");
-            var seedingService = _serviceProvider!.GetRequiredService<IDataSeedingService>();
+            System.Console.WriteLine("🗄️ Checking database status...");
+            
+            var context = _serviceProvider!.GetRequiredService<ApplicationDbContext>();
+            
+            // Use migrations instead of EnsureCreated to avoid pending model changes warning
+            System.Console.WriteLine("📊 Applying pending migrations...");
+            await context.Database.MigrateAsync();
+            System.Console.WriteLine("✅ Database ready");
+            
+            // Seed initial data
+            System.Console.WriteLine("🌱 Seeding initial data...");
+            var seedingService = _serviceProvider.GetRequiredService<IDataSeedingService>();
             
             await seedingService.SeedInitialDataAsync();
             await seedingService.SeedSampleDataAsync();
             
-            Log.Information("Database seeding completed successfully");
-            System.Console.WriteLine("✅ Database seeding completed");
+            Log.Information("Database and initial data ready");
+            System.Console.WriteLine("✅ Database initialization complete");
+            System.Console.WriteLine("✅ Default users created (admin/admin123)");
         }
         catch (Exception ex)
         {
-            System.Console.WriteLine($"⚠️ Database seeding failed: {ex.Message}");
-            Log.Warning(ex, "Database seeding failed - continuing without seeded data");
-            // Don't fail the application if seeding fails
+            System.Console.WriteLine($"⚠️ Database initialization error: {ex.Message}");
+            System.Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            Log.Error(ex, "Database initialization failed");
+            
+            // Show detailed error to user
+            MessageBox.Show(
+                $"Failed to initialize database:\n\n{ex.Message}\n\nThe application will continue, but you may need to initialize the database manually.\n\nSee console for details.",
+                "Database Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
     }
 
@@ -190,7 +280,7 @@ public partial class App : Application
     {
         var defaultConfig = @"{
   ""ConnectionStrings"": {
-    ""DefaultConnection"": ""Server=(localdb)\\mssqllocaldb;Database=SmartPOS;Trusted_Connection=true;TrustServerCertificate=true;""
+    ""DefaultConnection"": ""Data Source=SmartPOS.db""
   },
   ""Logging"": {
     ""LogLevel"": {
@@ -201,7 +291,7 @@ public partial class App : Application
   },
   ""ApplicationSettings"": {
     ""AppName"": ""Smart Retail POS Management System"",
-    ""Version"": ""1.0.0 - Phase 2: User Authentication""
+    ""Version"": ""1.0.0 - Phase 2 (SQLite)""
   }
 }";
         File.WriteAllText("appsettings.json", defaultConfig);
@@ -220,12 +310,15 @@ public partial class App : Application
             configure.AddSerilog();
         });
 
-        // Database
+        // Database - Using SQLite instead of SQL Server
         services.AddDbContext<ApplicationDbContext>(options =>
         {
-            var connectionString = Configuration!.GetConnectionString("DefaultConnection");
-            System.Console.WriteLine($"📊 Database connection: {connectionString}");
-            options.UseSqlServer(connectionString);
+            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "SmartPOS.db");
+            System.Console.WriteLine($"📊 Database location: {dbPath}");
+            options.UseSqlite($"Data Source={dbPath}");
+            // Suppress pending model changes warning - safe for development
+            options.ConfigureWarnings(warnings => 
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
 
         // Services
@@ -233,8 +326,8 @@ public partial class App : Application
         services.AddScoped<AuthenticationService>();
         services.AddScoped<IDataSeedingService, DataSeedingService>();
 
-        // Windows
-        services.AddSingleton<MainWindow>();
+        // Windows - Transient so we get a new instance each time
+        services.AddTransient<MainWindow>();
     }
 
     protected override void OnExit(ExitEventArgs e)

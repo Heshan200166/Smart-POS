@@ -118,6 +118,29 @@
                        FontSize="12"
                        Cursor="Hand"/>
 
+                <!-- Proceed to Login Button (Setup Mode Only) -->
+                <Button x:Name="ProceedToLoginButton"
+                       Content="✅ Continue to Login"
+                       Click="ProceedToLogin_Click"
+                       Width="250" 
+                       Height="45" 
+                       Margin="0,30,0,0"
+                       HorizontalAlignment="Center"
+                       Background="#16A085"
+                       Foreground="White"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Cursor="Hand"
+                       Visibility="Collapsed"/>
+
+                <TextBlock x:Name="SetupInstructions"
+                          Text="📋 Once database is initialized, click Continue to Login"
+                          FontSize="12"
+                          HorizontalAlignment="Center"
+                          Margin="0,10,0,0"
+                          Foreground="#7F8C8D"
+                          Visibility="Collapsed"/>
+
                 <!-- User Management Section (Admin Only) -->
                 <Border x:Name="AdminPanel" 
                         Background="#FFFFFF" 

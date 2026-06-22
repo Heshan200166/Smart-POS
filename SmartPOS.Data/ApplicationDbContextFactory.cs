@@ -12,8 +12,8 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
         
-        // Use LocalDB for development
-        optionsBuilder.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=SmartPOS;Trusted_Connection=true;TrustServerCertificate=true;");
+        // Use SQLite for development
+        optionsBuilder.UseSqlite("Data Source=SmartPOS.db");
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }
